@@ -4,6 +4,7 @@ import os
 import multiprocessing as mp
 import pandas as pd
 from sklearn.metrics import mean_squared_error
+from sklearn.metrics import r2_score
 import numpy as np
 import json
 import pprint
@@ -26,9 +27,10 @@ sys.path.append(ROOT_dir)
 
 
 class SensorCalibrationSegment:
-    def __init__(self, data=None, here_seg=None):
+    def __init__(self, data=None, here_seg=None, direction=None):
         self.data = data
         self.here_seg = here_seg
+        self.direction = direction
 
     def flow_cal(self, Capacity=None, u_f=None, u=None, alpha=None, beta=None):
         if u_f > u:
@@ -37,11 +39,11 @@ class SensorCalibrationSegment:
             return 0
 
     def spd2flow(self, alpha=None, beta=None):
-        self.data.loc[:, 'flow'] = self.data.apply(lambda row: self.flow_cal(Capacity=row['capacity'],
-                                                                             u_f=row['Here_FFS'],
-                                                                             u=row['Here_Speed_uncap'],
+        self.data.loc[:, 'flow_fit'] = self.data.apply(lambda row: self.flow_cal(Capacity=row['capacity'],
+                                                                             u_f=row['speed_ff'],
+                                                                             u=row['speed'],
                                                                              alpha=alpha, beta=beta), axis=1)
-        return -mean_squared_error(self.data.loc[:, 'flow'], self.data.loc[:, 'Flow'])
+        return -mean_squared_error(self.data.loc[:, 'flow_fit'], self.data.loc[:, 'flow'])
 
     def bo_search(self):
         # Start timing the code
@@ -56,7 +58,7 @@ class SensorCalibrationSegment:
             random_state=98,
         )
 
-        logger = JSONLogger(path=ROOT_dir + "/results/logs_" + self.here_seg + ".json")
+        logger = JSONLogger(path=ROOT_dir + "/results/logs_" + self.here_seg + "_" + str(self.direction) + ".json")
         optimizer.subscribe(Events.OPTIMIZATION_STEP, logger)
         optimizer.maximize(
             init_points=8,
@@ -69,23 +71,23 @@ class SensorCalibrationSegment:
                 'mse': -optimizer.max['target']}
 
 
-def search_func2parallel(data=None, here_seg=None):
+def search_func2parallel(data=None, here_seg=None, direction=None):
     """
-
     :type here_seg: a string of the here segment
     """
-    g = SensorCalibrationSegment(data=data, here_seg=here_seg)
+    g = SensorCalibrationSegment(data=data, here_seg=here_seg, direction=direction)
     opti = g.bo_search()
     opti['here_seg'] = here_seg
+    opti['direction'] = direction
     return opti
 
 
 if __name__ == '__main__':
-    df = pd.read_csv(ROOT_dir + '/dbs/flow2m.csv')
-    df = df.loc[(df.Here_Speed_uncap != 0) & (df.Here_FFS > df.Here_Speed_uncap)]
-    r = list(df.groupby(['Here_segmentID']))
+    df = pd.read_csv(ROOT_dir + '/dbs/flow3m.csv')
+    df = df.loc[(df.speed != 0) & (df.speed_ff > df.speed), :]
+    r = list(df.groupby(['HERE_segID', 'direction']))
     pool = mp.Pool(mp.cpu_count())
-    results = pool.starmap(search_func2parallel, [(x[1], x[0]) for x in r])
+    results = pool.starmap(search_func2parallel, [(x[1], x[0][0], x[0][1]) for x in r])
     df_res = pd.DataFrame(results)
     df_res.to_csv(ROOT_dir + '/results/params.csv', index=False)
     pool.close()

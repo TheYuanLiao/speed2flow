@@ -2,6 +2,7 @@
 # Objective : Ground truth vs. Estimated
 # Created by: Yuan Liao
 # Created on: 2020-10-18
+# Modified on: 2020-11-20
 
 library(dplyr)
 library(ggplot2)
@@ -12,32 +13,45 @@ library(viridisLite)
 library(latex2exp)
 
 df_para <- read.csv('results/params.csv')
-df <- read.csv('dbs/flow2m_estimated.csv')
-df <- df %>% mutate(time = ymd_hms(Time))
+df <- read.csv('dbs/flow3m_estimated.csv')
+df <- df %>%
+  mutate(time = ymd_hms(time)) %>%
+  mutate(hour = hour(time))
 
 df_day <- df %>%
-  group_by(hour, Here_segmentID) %>%
-  summarise(flow.min = min(flow),
+  group_by(hour, HERE_segID, direction) %>%
+  summarise(flow_fit.min = min(flow_fit),
+            flow_fit.max = max(flow_fit),
+            flow_fit.ave = median(flow_fit),
+            flow.min = min(flow),
             flow.max = max(flow),
-            flow.ave = median(flow),
-            Flow.min = min(Flow),
-            Flow.max = max(Flow),
-            Flow.ave = median(Flow))
+            flow.ave = median(flow))
 
-g1 <- ggplot(data = df_day, aes(x=as.factor(hour), y=flow.ave, group = Here_segmentID, color=Here_segmentID)) +
+df_day_work <- df_day %>%
+  filter(HERE_segID %in% df_para[df_para$r2 >= 0.5, ]$HERE_segID)
+
+df_day_failed <- df_day %>%
+  filter(!(HERE_segID %in% df_para[df_para$r2 >= 0.5, ]$HERE_segID))
+
+g1 <- ggplot(data = df_day_work, aes(x=as.factor(hour), y=flow_fit.ave,
+                                group = interaction(HERE_segID, direction),
+                                color=interaction(HERE_segID, direction))) +
   theme(legend.position = "none") +
   theme_minimal() +
   ylim(0, 8000) +
   labs(x = "Time of day", y = "Estimated flow") +
-  geom_ribbon(aes(x = as.factor(hour), ymin = flow.min, ymax = flow.max, fill=Here_segmentID), color=NA, alpha = 0.1) +
+  geom_ribbon(aes(x = as.factor(hour), ymin = flow_fit.min, ymax = flow_fit.max, fill=interaction(HERE_segID, direction)),
+              color=NA, alpha = 0.1) +
   geom_line(size=0.5)
+g1
 
-
-g2 <- ggplot(data = df_day, aes(x=as.factor(hour), y=Flow.ave, group = Here_segmentID, color=Here_segmentID)) +
+g2 <- ggplot(data = df_day_work, aes(x=as.factor(hour), y=flow.ave,
+                                     group = interaction(HERE_segID, direction), color=interaction(HERE_segID, direction))) +
   theme_minimal() +
   ylim(0, 8000) +
   labs(x = "Time of day", y = "Flow by sensors") +
   geom_line(size=0.5, alpha=0.3)
+g2
 
 g3 <- ggplot(data = df, aes(x=flow, y=Flow, group = Here_segmentID, color=Here_segmentID)) +
   theme(legend.position = "none") +
