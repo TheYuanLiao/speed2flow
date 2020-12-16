@@ -11,17 +11,17 @@ library(latticeExtra)
 library(viridisLite)
 library(latex2exp)
 
-df_para <- read.csv('results/params.csv')
-df <- read.csv('dbs/flow3m_estimated.csv')
-df <- df %>%
-  mutate(time = ymd_hms(time)) %>%
-  mutate(hour = hour(time))
+df_para <- read.csv('results/istanbul_params.csv')
+df <- read.csv('dbs/flow_istanbul_m_estimated.csv')
+# df <- df %>%
+#   mutate(time = ymd_hms(time)) %>%
+#   mutate(hour = hour(time))
 
-df_fit <- df[,c("HERE_segID", "hour", "speed", "direction", "flow_fit")]
+df_fit <- df[,c("HERE_segID", "time", "speed_gt", "direction", "flow_fit")]
 names(df_fit) <- c("HERE_segID", "hour", "speed", "direction", "flow")
 df_fit$src <- 'BPR'
 
-df_em <- df[,c("HERE_segID", "hour", "speed", "direction", "flow")]
+df_em <- df[,c("HERE_segID", "time", "speed_gt", "direction", "flow")]
 names(df_em) <- c("HERE_segID", "hour", "speed", "direction", "flow")
 df_em$src <- 'Sensor'
 
